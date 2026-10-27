@@ -162,4 +162,180 @@ def Xform "World"
             uniform token drive:angular:physics:type = "force"
         }
     }
+
+    # ROS 2 bridge, ticked once per app update while playing. Publishes the sim
+    # clock and the arm's joint states, and applies sensor_msgs/JointState
+    # commands from /joint_command to the arm's drives. The ROS domain comes
+    # from ROS_DOMAIN_ID.
+    def OmniGraph "ROSBridge"
+    {
+        token evaluationMode = "Automatic"
+        token evaluator:type = "execution"
+        token fabricCacheBacking = "StageWithoutHistory"
+        int2 fileFormatVersion = (1, 9)
+        token pipelineStage = "pipelineStageSimulation"
+
+        def OmniGraphNode "OnTick"
+        {
+            token node:type = "omni.graph.action.OnPlaybackTick"
+            int node:typeVersion = 2
+            custom uint outputs:tick (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+        }
+
+        def OmniGraphNode "Context"
+        {
+            custom bool inputs:useDomainIDEnvVar = 1
+            token node:type = "isaacsim.ros2.bridge.ROS2Context"
+            int node:typeVersion = 2
+            custom uint64 outputs:context
+        }
+
+        def OmniGraphNode "ReadSimTime"
+        {
+            token node:type = "isaacsim.core.nodes.IsaacReadSimulationTime"
+            int node:typeVersion = 1
+            custom double outputs:simulationTime
+        }
+
+        def OmniGraphNode "PublishClock"
+        {
+            custom uint64 inputs:context
+            prepend uint64 inputs:context.connect = </World/ROSBridge/Context.outputs:context>
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </World/ROSBridge/OnTick.outputs:tick>
+            custom double inputs:timeStamp
+            prepend double inputs:timeStamp.connect = </World/ROSBridge/ReadSimTime.outputs:simulationTime>
+            custom string inputs:topicName = "/clock"
+            token node:type = "isaacsim.ros2.bridge.ROS2PublishClock"
+            int node:typeVersion = 1
+        }
+
+        def OmniGraphNode "ReadJointState"
+        {
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </World/ROSBridge/OnTick.outputs:tick>
+            custom rel inputs:prim = </World/arm> (
+                customData = {
+                    dictionary omni = {
+                        dictionary graph = {
+                            string relType = "target"
+                        }
+                    }
+                }
+            )
+            token node:type = "isaacsim.sensors.physics.IsaacReadJointState"
+            int node:typeVersion = 1
+            custom uint outputs:execOut (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            custom uchar[] outputs:jointDofTypes
+            custom double[] outputs:jointEfforts
+            custom token[] outputs:jointNames
+            custom double[] outputs:jointPositions
+            custom double[] outputs:jointVelocities
+            custom float outputs:sensorTime
+            custom float outputs:stageMetersPerUnit
+        }
+
+        def OmniGraphNode "PublishJointState"
+        {
+            custom uint64 inputs:context
+            prepend uint64 inputs:context.connect = </World/ROSBridge/Context.outputs:context>
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </World/ROSBridge/ReadJointState.outputs:execOut>
+            custom uchar[] inputs:jointDofTypes
+            prepend uchar[] inputs:jointDofTypes.connect = </World/ROSBridge/ReadJointState.outputs:jointDofTypes>
+            custom double[] inputs:jointEfforts
+            prepend double[] inputs:jointEfforts.connect = </World/ROSBridge/ReadJointState.outputs:jointEfforts>
+            custom token[] inputs:jointNames
+            prepend token[] inputs:jointNames.connect = </World/ROSBridge/ReadJointState.outputs:jointNames>
+            custom double[] inputs:jointPositions
+            prepend double[] inputs:jointPositions.connect = </World/ROSBridge/ReadJointState.outputs:jointPositions>
+            custom double[] inputs:jointVelocities
+            prepend double[] inputs:jointVelocities.connect = </World/ROSBridge/ReadJointState.outputs:jointVelocities>
+            custom float inputs:sensorTime
+            prepend float inputs:sensorTime.connect = </World/ROSBridge/ReadJointState.outputs:sensorTime>
+            custom float inputs:stageMetersPerUnit
+            prepend float inputs:stageMetersPerUnit.connect = </World/ROSBridge/ReadJointState.outputs:stageMetersPerUnit>
+            custom rel inputs:targetPrim (
+                customData = {
+                    dictionary omni = {
+                        dictionary graph = {
+                            string relType = "target"
+                        }
+                    }
+                }
+            )
+            custom string inputs:topicName = "/joint_states"
+            token node:type = "isaacsim.ros2.bridge.ROS2PublishJointState"
+            int node:typeVersion = 1
+        }
+
+        def OmniGraphNode "SubscribeJointCommand"
+        {
+            custom uint64 inputs:context
+            prepend uint64 inputs:context.connect = </World/ROSBridge/Context.outputs:context>
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </World/ROSBridge/OnTick.outputs:tick>
+            custom string inputs:topicName = "/joint_command"
+            token node:type = "isaacsim.ros2.bridge.ROS2SubscribeJointState"
+            int node:typeVersion = 2
+            custom double[] outputs:effortCommand
+            custom token[] outputs:jointNames
+            custom double[] outputs:positionCommand
+            custom double[] outputs:velocityCommand
+        }
+
+        def OmniGraphNode "ArticulationController"
+        {
+            custom double[] inputs:effortCommand
+            prepend double[] inputs:effortCommand.connect = </World/ROSBridge/SubscribeJointCommand.outputs:effortCommand>
+            custom uint inputs:execIn (
+                customData = {
+                    bool isExecution = 1
+                }
+            )
+            prepend uint inputs:execIn.connect = </World/ROSBridge/OnTick.outputs:tick>
+            custom token[] inputs:jointNames
+            prepend token[] inputs:jointNames.connect = </World/ROSBridge/SubscribeJointCommand.outputs:jointNames>
+            custom double[] inputs:positionCommand
+            prepend double[] inputs:positionCommand.connect = </World/ROSBridge/SubscribeJointCommand.outputs:positionCommand>
+            custom string inputs:robotPath = "/World/arm"
+            custom rel inputs:targetPrim (
+                customData = {
+                    dictionary omni = {
+                        dictionary graph = {
+                            string relType = "target"
+                        }
+                    }
+                }
+            )
+            custom double[] inputs:velocityCommand
+            prepend double[] inputs:velocityCommand.connect = </World/ROSBridge/SubscribeJointCommand.outputs:velocityCommand>
+            token node:type = "isaacsim.core.nodes.IsaacArticulationController"
+            int node:typeVersion = 1
+        }
+    }
 }

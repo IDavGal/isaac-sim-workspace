@@ -19,7 +19,7 @@ RUN mkdir -p \
         /isaac-sim/.nv/ComputeCache \
         /isaac-sim/.nvidia-omniverse/logs \
         /isaac-sim/.local/share/ov/data \
-        /workspace/out \
+        /workspace \
     && chown -R 1234:1234 \
         /isaac-sim/kit/cache \
         /isaac-sim/.cache \

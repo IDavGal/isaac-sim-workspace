@@ -1,7 +1,8 @@
 # Isaac Sim services. Settings come from .env (see .env.example); each instance
 # on a shared host needs its own COMPOSE_PROJECT_NAME, ROS_DOMAIN_ID and ports.
+# docker/run.sh runs one of them.
 #
-#   docker compose run --rm sim                  # play config/sim.toml headless, exit with the result
+#   docker compose run --rm sim                  # headless
 #   docker compose up sim-livestream             # editor over WebRTC
 #   docker compose up sim-window                 # editor in a local X11 window
 services:
@@ -16,12 +17,18 @@ services:
     gpus: all
     user: "1234:1234"
     init: true
+    shm_size: "2gb"
     stop_grace_period: 30s
     environment:
+      ACCEPT_EULA: ${ACCEPT_EULA:?Set ACCEPT_EULA=Y in .env after accepting the NVIDIA Isaac Sim EULA}
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
       CYCLONEDDS_URI: file:///workspace/config/dds/${DDS_PROFILE:-loopback}.xml
       DDS_INTERFACE: ${DDS_INTERFACE:-}
       DDS_PEER: ${DDS_PEER:-}
+      LIVESTREAM_SIGNAL_PORT: ${LIVESTREAM_SIGNAL_PORT:-49100}
+      LIVESTREAM_STREAM_PORT: ${LIVESTREAM_STREAM_PORT:-47998}
+      LIVESTREAM_PUBLIC_IP: ${LIVESTREAM_PUBLIC_IP:-}
+      VSCODE_PORT: ${VSCODE_PORT:-0}
     volumes:
       - .:/workspace
       - kit-cache:/isaac-sim/kit/cache
@@ -34,27 +41,20 @@ services:
   sim-livestream:
     extends: sim
     profiles: [livestream]
-    command: >-
-      --set display.mode=livestream
-      --set run.mode=interactive
-      --set livestream.signal_port=${LIVESTREAM_SIGNAL_PORT:-49100}
-      --set livestream.stream_port=${LIVESTREAM_STREAM_PORT:-47998}
-      --set livestream.public_ip=${LIVESTREAM_PUBLIC_IP:-}
-      --set remote_exec.vscode_port=${VSCODE_PORT:-0}
-      ${SIM_ARGS:-}
+    command: --display livestream ${SIM_ARGS:-}
 
   sim-window:
     extends: sim
     profiles: [window]
     environment:
       DISPLAY: ${DISPLAY:-:0}
+      XAUTHORITY: /tmp/.sim.xauth
     volumes:
       - /tmp/.X11-unix:/tmp/.X11-unix
-    command: >-
-      --set display.mode=window
-      --set run.mode=interactive
-      --set remote_exec.vscode_port=${VSCODE_PORT:-0}
-      ${SIM_ARGS:-}
+      # X cookie readable by the container user, written by docker/run.sh.
+      # Without it (/dev/null) the X server must allow local clients: xhost +local:
+      - ${XAUTH_FILE:-/dev/null}:/tmp/.sim.xauth:ro
+    command: --display window ${SIM_ARGS:-}
 
 # Fixed names so every instance on the host shares the caches.
 volumes:
