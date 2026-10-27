@@ -1,0 +1,70 @@
+# Isaac Sim services. Settings come from .env (see .env.example); each instance
+# on a shared host needs its own COMPOSE_PROJECT_NAME, ROS_DOMAIN_ID and ports.
+#
+#   docker compose run --rm sim                  # play config/sim.toml headless, exit with the result
+#   docker compose up sim-livestream             # editor over WebRTC
+#   docker compose up sim-window                 # editor in a local X11 window
+services:
+  sim:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        ISAAC_SIM_IMAGE: ${ISAAC_SIM_IMAGE:-nvcr.io/nvidia/isaac-sim:6.2.0}
+    image: ${SIM_IMAGE:-isaac-sim-workspace:6.2.0}
+    network_mode: host
+    gpus: all
+    user: "1234:1234"
+    init: true
+    stop_grace_period: 30s
+    environment:
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      CYCLONEDDS_URI: file:///workspace/config/dds/${DDS_PROFILE:-loopback}.xml
+      DDS_INTERFACE: ${DDS_INTERFACE:-}
+      DDS_PEER: ${DDS_PEER:-}
+    volumes:
+      - .:/workspace
+      - kit-cache:/isaac-sim/kit/cache
+      - cache:/isaac-sim/.cache
+      - compute-cache:/isaac-sim/.nv/ComputeCache
+      - logs:/isaac-sim/.nvidia-omniverse/logs
+      - ov-data:/isaac-sim/.local/share/ov/data
+    command: ${SIM_ARGS:-}
+
+  sim-livestream:
+    extends: sim
+    profiles: [livestream]
+    command: >-
+      --set display.mode=livestream
+      --set run.mode=interactive
+      --set livestream.signal_port=${LIVESTREAM_SIGNAL_PORT:-49100}
+      --set livestream.stream_port=${LIVESTREAM_STREAM_PORT:-47998}
+      --set livestream.public_ip=${LIVESTREAM_PUBLIC_IP:-}
+      --set remote_exec.vscode_port=${VSCODE_PORT:-0}
+      ${SIM_ARGS:-}
+
+  sim-window:
+    extends: sim
+    profiles: [window]
+    environment:
+      DISPLAY: ${DISPLAY:-:0}
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
+    command: >-
+      --set display.mode=window
+      --set run.mode=interactive
+      --set remote_exec.vscode_port=${VSCODE_PORT:-0}
+      ${SIM_ARGS:-}
+
+# Fixed names so every instance on the host shares the caches.
+volumes:
+  kit-cache:
+    name: isaac-sim-kit-cache
+  cache:
+    name: isaac-sim-cache
+  compute-cache:
+    name: isaac-sim-compute-cache
+  logs:
+    name: isaac-sim-logs
+  ov-data:
+    name: isaac-sim-ov-data

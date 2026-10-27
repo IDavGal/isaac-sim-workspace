@@ -1,0 +1,58 @@
+# Scenario run by `python -m sim`. Every key can be overridden on the command
+# line with --set section.key=value (TOML value syntax, bare strings allowed).
+# Relative paths resolve against the workspace root.
+
+[stage]
+path = "scenes/demo_arm.usda"
+
+[run]
+# play: run the stage, check it, exit with the result.
+# interactive: open the stage in the editor and leave Play to the user.
+mode = "play"
+duration = 10.0        # sim seconds; 0 runs until SIGINT/SIGTERM
+realtime = false       # rate-limit to wall clock (1x)
+render_hz = 60.0       # app updates per sim second; physics substeps at the stage's rate
+settle = 1.0           # sim seconds before the base-drift reference is taken
+
+[display]
+mode = "headless"      # headless | window | livestream
+render = ""            # none | minimal | rtx; empty: rtx with a display, none headless
+
+[livestream]
+signal_port = 49100    # TCP port the WebRTC client dials
+stream_port = 47998    # UDP media port, also the one advertised to the client
+public_ip = ""         # address advertised for the media stream; empty: the host's
+log_level = "error"    # silence | error | warning | info | debug | verbose
+
+[remote_exec]
+vscode_port = 0        # VS Code / MCP Python executor on all interfaces; 0 disables
+
+[kit]
+experience = ""        # .kit file; empty: chosen from display.mode
+extensions = ["isaacsim.ros2.bridge"]
+args = []              # extra Kit arguments, e.g. ["--/log/fileLogLevel=info"]
+
+[ros_bridge]
+clock_topic = "/clock" # empty disables the clock publisher
+
+[[ros_bridge.joints]]
+articulation = "/World/arm"
+state_topic = "/joint_states"
+command_topic = "/joint_command"
+
+[checks]
+articulations = []     # articulation roots to check; empty: every root on the stage
+max_log_errors = -1    # fail above this many logged errors; -1 reports only
+min_topic_rate = 0.8   # fraction of run.render_hz each probed topic must reach
+
+[[checks.topics]]
+name = "/clock"
+type = "rosgraph_msgs/msg/Clock"
+
+[[checks.topics]]
+name = "/joint_states"
+type = "sensor_msgs/msg/JointState"
+
+[output]
+summary = ""           # JSON summary path; empty writes none
+log_file = ""          # Kit log; empty: next to the summary, else ~/.nvidia-omniverse/logs/sim/

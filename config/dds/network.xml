@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Sim and ROS stack on different hosts. DDS binds DDS_INTERFACE, whose address
+  is the locator advertised to peers, and sends discovery to DDS_PEER without
+  relying on multicast. CycloneDDS expands the variables when it reads the file.
+  For several peers, copy this file and add one <Peer> per host.
+-->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface name="${DDS_INTERFACE}" multicast="false" />
+      </Interfaces>
+      <AllowMulticast>false</AllowMulticast>
+    </General>
+    <Discovery>
+      <ParticipantIndex>auto</ParticipantIndex>
+      <MaxAutoParticipantIndex>30</MaxAutoParticipantIndex>
+      <Peers>
+        <Peer address="${DDS_PEER}" />
+      </Peers>
+    </Discovery>
+  </Domain>
+</CycloneDDS>
