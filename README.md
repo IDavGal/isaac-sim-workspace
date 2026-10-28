@@ -8,10 +8,11 @@ over WebRTC, or in a local window. ROS 2 Jazzy talks to the sim over CycloneDDS.
 sim/main.py                entrypoint: start SimulationApp, open the stage, play until stopped
 sim/run.sh                 runs sim/main.py with Isaac Sim's Python (the image entrypoint)
 scenes/demo_arm.usda       demo stage: a fixed-base two-joint arm and its ROS 2 bridge graph
+config/kit/                Kit experiences: sim.headless.kit, sim.gui.kit (both load the ROS 2 bridge)
 config/dds/                CycloneDDS profiles (loopback, network)
 docker/Dockerfile          Isaac Sim 6.2 + this workspace
-docker/run.sh              runs one compose service: --service, --build, X11 access
-docker-compose.yml         services: sim (headless), sim-window, sim-livestream
+docker/run.sh              runs the simulation: --display, --build, X11 access for the window
+docker-compose.yml         the sim service
 .env.example               per-instance settings: EULA, project name, ROS domain, DDS, ports
 ```
 
@@ -37,36 +38,37 @@ The sim does not start until `ACCEPT_EULA` is set.
 ## Running
 
 ```
-docker/run.sh [--service NAME] [--build] [-- ENTRYPOINT_ARGS...]
+docker/run.sh [--display MODE] [--build] [-- ENTRYPOINT_ARGS...]
 ```
 
 | Option | |
 |---|---|
-| `--service sim-window` | the editor in a local X11 window (default) |
-| `--service sim-livestream` | the editor streamed over WebRTC |
-| `--service sim` | headless, nothing rendered |
+| `--display window` | the editor in a local X11 window (default) |
+| `--display livestream` | the editor streamed over WebRTC |
+| `--display headless` | no window, nothing rendered |
 | `--build` | rebuild the image first; only needed after `docker/Dockerfile` changes, since the checkout is mounted into the container |
 | `-- ARGS` | arguments for `sim/main.py`, e.g. `-- --stage scenes/other.usda` |
 
-The service sets the display: each one passes its `--display` to the
-entrypoint. In every mode the stage starts playing as soon as it has loaded, in
+The display picks the Kit experience: `headless` uses `config/kit/sim.headless.kit`
+and the other two use `config/kit/sim.gui.kit`. For `livestream` the entrypoint
+also starts the WebRTC extension, on the ports in `.env`. In every mode the stage starts playing as soon as it has loaded, in
 real time at 60 app updates per second, and runs until Ctrl+C, `docker stop`
 or, in the window, closing it. `run.sh` exits with the sim's status: 0 when it
 was stopped, 1 when the stage could not be opened or the run failed.
 
-For `sim-window`, `run.sh` gives the container a copy of your X cookie that the
+For `window`, `run.sh` gives the container a copy of your X cookie that the
 container user can read, and deletes it on exit.
 
 The first run compiles the RTX shaders, which takes a few minutes; later runs
 reuse them from the `isaac-sim-kit-cache` volume.
 
-The services also run with plain Compose. Started that way, `sim-window` gets
-no X cookie: allow local X clients first (`xhost +local:`, and `xhost -local:`
-afterwards).
+The same runs with plain Compose, with the display in `SIM_DISPLAY` (default
+`headless`). Started that way, `window` gets no X cookie: allow local X clients
+first (`xhost +local:`, and `xhost -local:` afterwards).
 
 ```bash
 docker compose run --rm sim
-docker compose up sim-livestream
+SIM_DISPLAY=livestream docker compose run --rm sim
 ```
 
 ## ROS 2

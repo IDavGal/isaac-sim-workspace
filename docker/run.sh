@@ -1,20 +1,20 @@
 #!/bin/bash
-# Run one of the docker-compose.yml services and exit with its status.
+# Run the docker-compose.yml simulation and exit with its status.
 #
-#   docker/run.sh [--service NAME] [--build] [-- ENTRYPOINT_ARGS...]
+#   docker/run.sh [--display MODE] [--build] [-- ENTRYPOINT_ARGS...]
 #
-#   --service NAME  sim-window (default), sim-livestream or sim
+#   --display MODE  window (default), livestream or headless
 #   --build         rebuild the image before running
 #   -- ARGS         extra entrypoint arguments, e.g. -- --stage scenes/other.usda
 #
-# Creates .env from .env.example on first use. For sim-window it hands the
+# Creates .env from .env.example on first use. For window it hands the
 # container a copy of the X cookie it can read, since the container user is
 # not the host user that owns the display.
 set -euo pipefail
 
 WORKSPACE=$(cd "$(dirname "$0")/.." && pwd)
-SERVICES=(sim-window sim-livestream sim)
-service=sim-window
+DISPLAYS=(window livestream headless)
+display=window
 build=()
 extra=()
 
@@ -24,13 +24,13 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --service)
-            [[ $# -ge 2 ]] || { echo "run.sh: --service needs a value" >&2; exit 2; }
-            service=$2
+        --display)
+            [[ $# -ge 2 ]] || { echo "run.sh: --display needs a value" >&2; exit 2; }
+            display=$2
             shift 2
             ;;
-        --service=*)
-            service=${1#*=}
+        --display=*)
+            display=${1#*=}
             shift
             ;;
         --build)
@@ -54,8 +54,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ ! " ${SERVICES[*]} " =~ " $service " ]]; then
-    echo "run.sh: unknown service '$service'; choose one of: ${SERVICES[*]}" >&2
+if [[ ! " ${DISPLAYS[*]} " =~ " $display " ]]; then
+    echo "run.sh: unknown display '$display'; choose one of: ${DISPLAYS[*]}" >&2
     exit 2
 fi
 
@@ -73,9 +73,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ $service == sim-window ]]; then
+if [[ $display == window ]]; then
     if [[ -z ${DISPLAY:-} ]]; then
-        echo "run.sh: DISPLAY is not set; sim-window needs an X display" >&2
+        echo "run.sh: DISPLAY is not set; the window display needs an X display" >&2
         exit 2
     fi
     if ! command -v xauth >/dev/null; then
@@ -93,13 +93,14 @@ if [[ $service == sim-window ]]; then
     export XAUTH_FILE=$xauth_file
 fi
 
+export SIM_DISPLAY=$display
 if [[ ${#extra[@]} -gt 0 ]]; then
-    # Appended to the service's command by docker-compose.yml.
+    # Appended to the entrypoint arguments by docker-compose.yml.
     SIM_ARGS=$(printf '%q ' "${extra[@]}")
     export SIM_ARGS
 fi
 
 # Not exec: the trap removes the X cookie copy when the container exits.
 status=0
-docker compose run --rm "${build[@]}" "$service" || status=$?
+docker compose run --rm "${build[@]}" sim || status=$?
 exit "$status"

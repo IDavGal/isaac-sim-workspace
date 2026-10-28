@@ -3,8 +3,9 @@
     sim/run.sh [--stage PATH] [--display headless|window|livestream]
 
 The stage plays in real time from startup and runs until SIGINT or SIGTERM, or
-until the window is closed. The ROS 2 bridge is part of the stage. The process
-exits 0 when stopped and 1 when the stage could not be opened or the run failed.
+until the window is closed. The Kit experience in config/kit loads the ROS 2
+bridge extension; the bridge graphs are part of the stage. The process exits 0
+when stopped and 1 when the stage could not be opened or the run failed.
 
 Environment:
     LIVESTREAM_SIGNAL_PORT  TCP port the WebRTC client dials (livestream, default 49100)
@@ -28,14 +29,10 @@ DEFAULT_STAGE = WORKSPACE / "scenes" / "demo_arm.usda"
 # App updates per second. Physics substeps at the rate of the stage's PhysicsScene.
 UPDATE_HZ = 60.0
 
-# Enabled before the stage opens so its OmniGraph nodes resolve.
-EXTENSIONS = ["isaacsim.ros2.bridge"]
-
-# Experience per display, in Isaac Sim's apps folder; None keeps SimulationApp's default.
 EXPERIENCES = {
-    "headless": None,
-    "window": "isaacsim.exp.full.kit",
-    "livestream": "isaacsim.exp.full.streaming.kit",
+    "headless": WORKSPACE / "config" / "kit" / "sim.headless.kit",
+    "window": WORKSPACE / "config" / "kit" / "sim.gui.kit",
+    "livestream": WORKSPACE / "config" / "kit" / "sim.gui.kit",
 }
 
 
@@ -60,32 +57,14 @@ def parse_args() -> argparse.Namespace:
 
 def launch_config(display: str) -> dict:
     """SimulationApp configuration for the display mode."""
-    if display == "headless":
-        # Nothing is displayed, so nothing is rendered.
-        config = {
-            "headless": True,
-            "renderer": "MinimalRendering",
-            "extra_args": ["--/app/renderer/enabled=false", "--/renderer/enabled=false"],
-        }
-    else:
-        config = {
-            "headless": display != "window",
-            "renderer": "RaytracedLighting",
-            "extra_args": [],
-            "experience": str(Path(os.environ["EXP_PATH"]) / EXPERIENCES[display]),
-        }
-
+    config = {
+        "headless": display != "window",
+        "experience": str(EXPERIENCES[display]),
+        "extra_args": [],
+    }
     if display == "livestream":
         # The livestream shows the editor UI even though no local window opens.
         config["hide_ui"] = False
-        prefix = "--/exts/omni.kit.livestream.app/primaryStream"
-        config["extra_args"] += [
-            f"{prefix}/signalPort={os.environ.get('LIVESTREAM_SIGNAL_PORT', '49100')}",
-            f"{prefix}/streamPort={os.environ.get('LIVESTREAM_STREAM_PORT', '47998')}",
-            "--/log/channels/omni.kit.livestream.*=error",
-        ]
-        if public_ip := os.environ.get("LIVESTREAM_PUBLIC_IP"):
-            config["extra_args"].append(f"{prefix}/publicIp={public_ip}")
 
     vscode_port = int(os.environ.get("VSCODE_PORT") or 0)
     if vscode_port:
@@ -98,7 +77,22 @@ def launch_config(display: str) -> dict:
     return config
 
 
-def run(kit, stage_path: Path) -> int:
+def enable_livestream() -> bool:
+    """Start the WebRTC stream on the ports from the environment."""
+    import carb
+    from isaacsim.core.experimental.utils import app as app_utils
+
+    settings = carb.settings.get_settings()
+    prefix = "/exts/omni.kit.livestream.app/primaryStream"
+    settings.set(f"{prefix}/signalPort", int(os.environ.get("LIVESTREAM_SIGNAL_PORT", "49100")))
+    settings.set(f"{prefix}/streamPort", int(os.environ.get("LIVESTREAM_STREAM_PORT", "47998")))
+    if public_ip := os.environ.get("LIVESTREAM_PUBLIC_IP"):
+        settings.set(f"{prefix}/publicIp", public_ip)
+    settings.set("/log/channels/omni.kit.livestream.*", "error")
+    return app_utils.enable_extension("omni.kit.livestream.app")
+
+
+def run(kit, stage_path: Path, display: str) -> int:
     """Open the stage and play it until stopped; returns the exit status."""
     # Kit modules only import once the app is running.
     import carb
@@ -108,10 +102,9 @@ def run(kit, stage_path: Path) -> int:
     from isaacsim.core.rendering_manager import RenderingManager
     from isaacsim.core.simulation_manager import SimulationManager
 
-    for ext in EXTENSIONS:
-        if not app_utils.enable_extension(ext):
-            print(f"[sim] could not enable {ext}", file=sys.stderr)
-            return 1
+    if display == "livestream" and not enable_livestream():
+        print("[sim] could not enable the livestream", file=sys.stderr)
+        return 1
 
     ctx = omni.usd.get_context()
     if not stage_path.is_file() or not ctx.open_stage(str(stage_path)):
@@ -156,7 +149,7 @@ def main() -> None:
 
     kit = SimulationApp(launch_config(args.display))
     try:
-        code = run(kit, args.stage)
+        code = run(kit, args.stage, args.display)
     except Exception:  # noqa: BLE001 -- the app must still close with a failure status
         traceback.print_exc()
         code = 1
