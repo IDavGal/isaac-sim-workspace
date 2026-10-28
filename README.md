@@ -11,6 +11,7 @@ scenes/demo_arm.usda       demo stage: a fixed-base two-joint arm and its ROS 2 
 config/kit/                Kit experiences: sim.headless.kit, sim.gui.kit (both load the ROS 2 bridge)
 config/dds/                CycloneDDS profiles (loopback, network)
 docker/Dockerfile          Isaac Sim 6.2 + this workspace
+setup.sh                 host shell setup for ROS 2 nodes that talk to the sim
 docker/run.sh              runs the simulation: --display, --build, X11 access for the window
 docker-compose.yml         the sim service
 .env.example               per-instance settings: EULA, project name, ROS domain, DDS, ports
@@ -80,6 +81,10 @@ commands from `/joint_command` to the arm's drives:
 ```bash
 ros2 topic pub /joint_command sensor_msgs/msg/JointState "{name: [joint1, joint2], position: [0.5, -0.5]}"
 ```
+
+From a host with ROS 2 Jazzy, `source setup.sh` selects CycloneDDS with the
+loopback profile and stops the `ros2` daemon, which otherwise keeps the
+middleware it started with. `ROS_DOMAIN_ID` must match the sim's.
 
 Peers must use CycloneDDS (`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`) on the same
 `ROS_DOMAIN_ID`. Discovery runs over unicast to known peers, without multicast:
