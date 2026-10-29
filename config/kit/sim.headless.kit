@@ -1,31 +1,86 @@
+# Experience without UI or rendering: the sim runs physics and the ROS 2 bridge only.
+# Booted by sim/main.py when neither --gui nor --livestream is given; the editor
+# experience is sim.gui.kit.
+#
+# Not built on isaacsim.exp.base (what SimulationApp boots by default): that pulls in
+# the editor's menus, windows, content browsers, motion planners and Replicator
+# writers. This lists only what sim/main.py and the demo stage use; a stage that
+# needs more extensions (sensors, other OmniGraph nodes) adds them here.
 [package]
-title = "Simulation (headless)"
-description = "Isaac Sim without a window or renderer, with the ROS 2 bridge"
-version = "0.1.0"
-keywords = ["experience", "app", "usd", "isaacsim"]
+title = "Isaac Sim workspace (headless)"
+description = "Physics and the ROS 2 bridge for Isaac Sim, nothing rendered"
+version = "6.2.0"
+keywords = ["experience", "app", "headless"]
 
 [dependencies]
-"isaacsim.exp.base" = {}
-"isaacsim.ros2.bridge" = {}
+# SimulationApp itself and Isaac Sim's run loop.
+"isaacsim.simulation_app" = {}
+"omni.kit.loop-isaac" = {}
+# What sim/main.py imports.
+"isaacsim.core.experimental.utils" = {}
+"isaacsim.core.rendering_manager" = {}
+"isaacsim.core.simulation_manager" = {}
+# The demo stage's OmniGraph nodes; listed so a missing one fails the boot rather
+# than the graph. The ROS 2 nodes without isaacsim.ros2.bridge, which only adds
+# its UI and examples.
+"omni.graph.action" = {}
+"isaacsim.core.nodes" = {}
+"isaacsim.sensors.physics.nodes" = {}
+"isaacsim.ros2.nodes" = {}
 
 [settings]
-rtx.spg.enabled = true # Enable RTX Sensor Processing Graphs feature
+# The internal ROS 2 libraries, unless a distro is sourced (read by isaacsim.ros2.core).
+exts."isaacsim.ros2.bridge".ros_distro = "system_default"
+# Nothing is displayed, so nothing is rendered (app.renderer.enabled is below).
+renderer.enabled = false
+# From isaacsim.exp.base.
+foundation.verifyOsVersion.enabled = false
+omni.replicator.asyncRendering = false
+rtx-transient.dlssg.enabled = false
 
 [settings.app]
-name = "Simulation"
-version = "0.1.0"
-settings.persistent = false          # settings reset on each run
-vulkan = true
-enableDeveloperWarnings = false
-renderer.enabled = false             # nothing is displayed, so nothing is rendered
+name = "Isaac-Sim Workspace"
+window.title = "Isaac Sim Workspace"
+versionFile = "${kit}/../VERSION"
+renderer.enabled = false
+# Every run starts from these settings, not from ones persisted by an earlier run.
+settings.persistent = false
+# Real time: the main loop sleeps to 60 updates per second.
+runLoops.main.rateLimitEnabled = true
+runLoops.main.rateLimitFrequency = 60
+# From isaacsim.exp.base: the loop steps a fixed dt (RenderingManager sets it) and the
+# timeline follows it.
+runLoops.main.manualModeEnabled = true
+player.useFixedTimeStepping = false
+content.emptyStageOnStart = true
+events.qualifiedNames = true
+fastShutdown = true
+hangDetector.enabled = true
+hangDetector.timeout = 120
+settings.fabricDefaultStageFrameHistoryCount = 3
 
-[settings.renderer]
-enabled = false
-
-[settings.app.exts.folders]
-'++' = [
+# Both lists replace Kit's defaults, which name folders this install does not have
+# (${kit}/exts, ${kit}/extsPhysics, per-user document folders): for each, Kit also
+# searches an empty path, the working directory, and warns about every folder in it
+# (all of /workspace).
+#
+# This file is loaded from the workspace, so ${app} is not Isaac Sim's apps folder:
+# the Isaac Sim folders are reached through ${kit}, the Kit SDK folder.
+[settings.app.exts]
+foldersCore = ["${kit}/apps", "${kit}/extscore"]
+folders = [
+    "${app}",
+    "${kit}/../apps",
     "${kit}/../exts",
     "${kit}/../extscache",
     "${kit}/../extsUser",
     "${kit}/../extsDeprecated",
 ]
+
+[settings.persistent]
+# No Replicator writers run here.
+omni.replicator.captureOnPlay = false
+
+[settings.telemetry]
+enableAnonymousAppName = false
+enableAnonymousData = false

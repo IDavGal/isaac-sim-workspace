@@ -1,27 +1,121 @@
+# Editor experience: Isaac Sim's full editor (isaacsim.exp.full) without its examples,
+# content browsers, asset converters and authoring tools this workspace does not use,
+# which shortens startup. Booted by sim/main.py for --gui, --livestream or both;
+# sim/main.py enables the livestream at runtime.
 [package]
-title = "Simulation (GUI)"
-description = "The Isaac Sim editor with the ROS 2 bridge, for a local window or a livestream"
-version = "0.1.0"
+title = "Isaac Sim workspace"
+description = "Isaac Sim editor with the ROS 2 bridge, for a local window or a livestream"
+version = "6.2.0"
 keywords = ["experience", "app", "usd", "isaacsim"]
 
 [dependencies]
-"isaacsim.exp.full" = {}
+"isaacsim.exp.base" = {}
 "isaacsim.ros2.bridge" = {}
 
+# From isaacsim.exp.full: editor setup and windows.
+"isaacsim.app.setup" = { order = 1000 }
+"isaacsim.gui.components" = {}
+"omni.kit.uiapp" = {}
+"omni.kit.renderer.core" = {}
+"omni.kit.renderer.capture" = {}
+"omni.kit.viewport.actions" = {}
+"omni.kit.viewport.bundle" = {}
+"omni.kit.viewport.rtx" = {}
+"omni.kit.viewport_widgets_manager" = {}
+"omni.kit.manipulator.transform" = {}
+"omni.kit.selection" = {}
+"omni.kit.context_menu" = {}
+"omni.kit.stage.copypaste" = {}
+"omni.kit.mesh.raycast" = {}
+"omni.kit.quicklayout" = {}
+"omni.kit.property.layer" = {}
+"omni.kit.widget.layers" = {}
+"omni.kit.widget.timeline" = {}
+"omni.kit.widget.filebrowser" = {}
+"omni.kit.window.file" = {}
+"omni.kit.window.filepicker" = {}
+"omni.kit.window.title" = {}
+"omni.kit.window.extensions" = {}
+"omni.kit.window.preferences" = {}
+"omni.kit.window.script_editor" = {}
+"omni.kit.window.stats" = { order = 1000 }
+"omni.kit.profiler.window" = { order = 2000 }
+"omni.kit.hotkeys.window" = {}
+"omni.kit.usda_edit" = {}
+"omni.resourcemonitor" = {}
+"omni.stats" = {}
+
+# From isaacsim.exp.full: physics, OmniGraph and robot/sensor property panels.
+"omni.physx.bundle" = {}
+"isaacsim.util.physics" = {}
+"omni.graph.bundle.action" = {}
+"omni.graph.window.action" = {}
+"omni.graph.window.generic" = {}
+"omni.graph.visualization.nodes" = {}
+"isaacsim.robot.schema.ui" = {}
+"isaacsim.robot.manipulators.ui" = {}
+"isaacsim.robot_setup.gain_tuner.ui" = {}
+"isaacsim.sensors.camera.ui" = {}
+"isaacsim.sensors.physics.ui" = {}
+"isaacsim.sensors.physx.ui" = {}
+"isaacsim.sensors.rtx.ui" = {}
+"isaacsim.asset.importer.urdf.ui" = {}
+"isaacsim.asset.importer.mjcf.ui" = {}
+
 [settings]
-rtx.spg.enabled = true # Enable RTX Sensor Processing Graphs feature
+rtx.spg.enabled = true
+exts."isaacsim.ros2.bridge".ros_distro = "system_default"
 
 [settings.app]
-name = "Simulation"
-version = "0.1.0"
-settings.persistent = false          # settings reset on each run
-vulkan = true
-enableDeveloperWarnings = false
+name = "Isaac-Sim Workspace"
+window.title = "Isaac Sim Workspace"
+versionFile = "${kit}/../VERSION"
+# Every run starts from these settings, not from ones persisted by an earlier run
+# (the window layout included).
+settings.persistent = false
+# Real time: the main loop sleeps to 60 updates per second.
+runLoops.main.rateLimitEnabled = true
+runLoops.main.rateLimitFrequency = 60
+# Closing the window does not ask to save the stage.
+file.ignoreUnsavedOnExit = true
 
-[settings.app.exts.folders]
-'++' = [
+# Both lists replace Kit's defaults, which name folders this install does not have
+# (${kit}/exts, ${kit}/extsPhysics, per-user document folders): for each, Kit also
+# searches an empty path, the working directory, and warns about every folder in it
+# (all of /workspace).
+#
+# This file is loaded from the workspace, so ${app} is not Isaac Sim's apps folder:
+# the Isaac Sim folders are reached through ${kit}, the Kit SDK folder.
+[settings.app.exts]
+foldersCore = ["${kit}/apps", "${kit}/extscore"]
+folders = [
+    "${app}",
+    "${kit}/../apps",
     "${kit}/../exts",
     "${kit}/../extscache",
     "${kit}/../extsUser",
     "${kit}/../extsDeprecated",
 ]
+
+# Livestream defaults, from isaacsim.exp.full.streaming; inert until sim/main.py
+# enables omni.kit.livestream.app and sets the ports.
+[settings.app.livestream]
+allowResize = true
+outDirectory = "${data}"
+
+[settings.exts."omni.kit.livestream.app"]
+primaryStream.streamType = "webrtc"
+primaryStream.allowDynamicResize = true
+primaryStream.enableOpenTelemetry = false
+
+[settings.exts."omni.services.livestream.session"]
+# A client disconnecting must not stop the sim (the streaming experience quits).
+quitOnSessionEnded = false
+
+[settings.persistent]
+# No Replicator writers run here; base turns capture on play on.
+omni.replicator.captureOnPlay = false
+
+[settings.telemetry]
+enableAnonymousAppName = false
+enableAnonymousData = false

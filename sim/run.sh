@@ -3,7 +3,7 @@
 # python.sh, but execs Python so SIGTERM reaches the entrypoint and its exit
 # status is preserved (python.sh maps every failure to 1).
 #
-#   sim/run.sh --display window --stage scenes/demo_arm.usda
+#   sim/run.sh --gui --stage scenes/demo_arm.usda
 #
 # ISAAC_SIM_DIR selects the install; it defaults to the container's.
 set -e
@@ -12,7 +12,9 @@ WORKSPACE=$(cd "$(dirname "$0")/.." && pwd)
 export CARB_APP_PATH=$ISAAC_SIM_DIR/kit
 export ISAAC_PATH=$ISAAC_SIM_DIR
 export EXP_PATH=$ISAAC_SIM_DIR/apps
+# shellcheck source=/dev/null  # Isaac Sim's scripts, not in this repository
 source "$ISAAC_SIM_DIR/setup_python_env.sh"
+# shellcheck source=/dev/null
 source "$ISAAC_SIM_DIR/setup_ros_env.sh"
 export RESOURCE_NAME="IsaacSim"
 export PYTHONUNBUFFERED=1

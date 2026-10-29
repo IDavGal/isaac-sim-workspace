@@ -1,5 +1,6 @@
+# shellcheck shell=bash
 # Source this to talk to the simulation from the host's ROS 2 install:
-
+#
 #   source setup.sh
 #
 # Selects CycloneDDS with the loopback profile the sim container uses, and stops

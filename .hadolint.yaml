@@ -1,0 +1,4 @@
+failure-threshold: warning
+# The Isaac Sim base image is pinned by tag through the ISAAC_SIM_IMAGE build argument.
+trustedRegistries:
+  - nvcr.io

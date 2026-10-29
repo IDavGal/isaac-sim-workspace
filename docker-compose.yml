@@ -1,3 +1,10 @@
+# The Isaac Sim service. docker/sim.sh builds and runs it; settings come from .env
+# (see .env.example), and each instance on a shared host needs its own
+# COMPOSE_PROJECT_NAME, ROS_DOMAIN_ID and ports.
+#
+# Running the image accepts the NVIDIA Isaac Sim license:
+# https://www.nvidia.com/en-us/agreements/enterprise-software/isaac-sim-additional-software-and-materials-license/
+
 services:
   sim:
     build:
@@ -5,15 +12,19 @@ services:
       dockerfile: docker/Dockerfile
       args:
         ISAAC_SIM_IMAGE: ${ISAAC_SIM_IMAGE:-nvcr.io/nvidia/isaac-sim:6.2.0}
+        USER_ID: ${HOST_UID:-1000}
+        GROUP_ID: ${HOST_GID:-1000}
     image: ${SIM_IMAGE:-isaac-sim-workspace:6.2.0}
+    # DDS and the livestream use the host's interfaces. CycloneDDS runs over UDP
+    # (loopback or the network), so no shared memory or IPC namespace is shared.
     network_mode: host
-    ipc: host
     gpus: all
-    user: "1234:1234"
     init: true
-    shm_size: "2gb"
     stop_grace_period: 30s
     environment:
+      ACCEPT_EULA: "Y"
+      SIM_GUI: ${SIM_GUI:-0}
+      SIM_LIVESTREAM: ${SIM_LIVESTREAM:-0}
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
       CYCLONEDDS_URI: file:///workspace/config/dds/${DDS_PROFILE:-loopback}.xml
       DDS_INTERFACE: ${DDS_INTERFACE:-}
@@ -22,31 +33,23 @@ services:
       LIVESTREAM_STREAM_PORT: ${LIVESTREAM_STREAM_PORT:-47998}
       LIVESTREAM_PUBLIC_IP: ${LIVESTREAM_PUBLIC_IP:-}
       VSCODE_PORT: ${VSCODE_PORT:-0}
-      DISPLAY: ${DISPLAY:-:0}
-      XAUTHORITY: /tmp/.sim.xauth
     volumes:
       - .:/workspace
       - kit-cache:/isaac-sim/kit/cache
       - cache:/isaac-sim/.cache
       - compute-cache:/isaac-sim/.nv/ComputeCache
-      - logs:/isaac-sim/.nvidia-omniverse/logs
+      - logs:/isaac-sim/kit/logs
       - ov-data:/isaac-sim/.local/share/ov/data
-      - /dev/shm:/dev/shm
-      - /tmp/.X11-unix:/tmp/.X11-unix
-      # X cookie readable by the container user, written by docker/run.sh.
-      # Without it (/dev/null) the X server must allow local clients: xhost +local:
-      - ${XAUTH_FILE:-/dev/null}:/tmp/.sim.xauth:ro
-    command: --display ${SIM_DISPLAY:-headless} ${SIM_ARGS:-}
+    command: ${SIM_ARGS:-}
 
-# Fixed names so every instance on the host shares the caches.
 volumes:
   kit-cache:
-    name: isaac-sim-kit-cache
+    name: isaac-sim-kit-cache-${HOST_UID:-1000}
   cache:
-    name: isaac-sim-cache
+    name: isaac-sim-cache-${HOST_UID:-1000}
   compute-cache:
-    name: isaac-sim-compute-cache
+    name: isaac-sim-compute-cache-${HOST_UID:-1000}
   logs:
-    name: isaac-sim-logs
+    name: isaac-sim-logs-${HOST_UID:-1000}
   ov-data:
-    name: isaac-sim-ov-data
+    name: isaac-sim-ov-data-${HOST_UID:-1000}
