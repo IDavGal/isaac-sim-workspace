@@ -1,0 +1,55 @@
+# Run `pre-commit install` once, then the hooks run on every commit.
+# `pre-commit run --all-files` runs the whole suite (CI does the same).
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-xml
+      - id: check-yaml
+      - id: check-toml
+      - id: check-toml
+        name: check kit files
+        types: [file]
+        files: \.kit$
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: trailing-whitespace
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check
+        args: ["--fix"]
+      - id: ruff-format
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
+        args: ["--strict"]
+
+  - repo: https://github.com/AleksaC/hadolint-py
+    rev: v2.15.1
+    hooks:
+      - id: hadolint
+        args: ["--config", ".hadolint.yaml"]
+
+  - repo: local
+    hooks:
+      - id: docker-compose-config
+        name: docker compose config
+        entry: docker compose -f docker-compose.yml config --quiet
+        language: system
+        files: ^(docker-compose\.yml|\.env\.example)$
+        pass_filenames: false

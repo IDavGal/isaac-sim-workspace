@@ -1,20 +1,22 @@
 # Isaac Sim workspace
 
 A containerised Isaac Sim 6.2 simulation driven by one SimulationApp entrypoint.
-It opens a USD stage and plays it in real time until stopped, headless, streamed
-over WebRTC, or in a local window. ROS 2 Jazzy talks to the sim over CycloneDDS.
+It opens a USD stage and plays it in real time until stopped: headless, in a local
+window, streamed over WebRTC, or in a local window that is also streamed. ROS 2
+Jazzy talks to the sim over CycloneDDS.
 
 ```
 sim/main.py                entrypoint: start SimulationApp, open the stage, play until stopped
 sim/run.sh                 runs sim/main.py with Isaac Sim's Python (the image entrypoint)
 scenes/demo_arm.usda       demo stage: a fixed-base two-joint arm and its ROS 2 bridge graph
-config/kit/                Kit experiences: sim.headless.kit, sim.gui.kit (both load the ROS 2 bridge)
+config/kit/sim.gui.kit     experience for a window or a livestream: a lighter Isaac Sim editor
+config/kit/sim.headless.kit  experience without UI: only what the sim and its stage use, nothing rendered
 config/dds/                CycloneDDS profiles (loopback, network)
-docker/Dockerfile          Isaac Sim 6.2 + this workspace
-setup.sh                 host shell setup for ROS 2 nodes that talk to the sim
-docker/run.sh              runs the simulation: --display, --build, X11 access for the window
+setup.sh                   host shell setup for ROS 2 nodes that talk to the sim
+docker/Dockerfile          Isaac Sim 6.2 + this workspace, running as your user id
+docker/sim.sh              build, run, shell: the way to drive the container
 docker-compose.yml         the sim service
-.env.example               per-instance settings: EULA, project name, ROS domain, DDS, ports
+.env.example               optional per-instance settings: project name, ROS domain, DDS, ports
 ```
 
 ## Requirements
@@ -26,50 +28,70 @@ docker-compose.yml         the sim service
 
 ## Quick start
 
-Read the [NVIDIA Isaac Sim license](https://www.nvidia.com/en-us/agreements/enterprise-software/isaac-sim-additional-software-and-materials-license/),
-then:
+Running the image accepts the [NVIDIA Isaac Sim license](https://www.nvidia.com/en-us/agreements/enterprise-software/isaac-sim-additional-software-and-materials-license/)
+(`docker-compose.yml` sets `ACCEPT_EULA=Y`); read it first. Then:
 
 ```bash
-cp .env.example .env        # and set ACCEPT_EULA=Y in it
-docker/run.sh --build       # build the image and open the sim in a local window
+docker/sim.sh build         # build the image for your user id
+docker/sim.sh run --gui     # open the sim in a local window
 ```
-
-The sim does not start until `ACCEPT_EULA` is set.
 
 ## Running
 
 ```
-docker/run.sh [--display MODE] [--build] [-- ENTRYPOINT_ARGS...]
+docker/sim.sh [--env-file FILE] build [COMPOSE_BUILD_OPTIONS...]
+docker/sim.sh [--env-file FILE] run [--gui] [--livestream] [--build] [-- ARGS...]
+docker/sim.sh [--env-file FILE] shell [-- COMMAND...]
 ```
 
-| Option | |
+| Command | |
 |---|---|
-| `--display window` | the editor in a local X11 window (default) |
-| `--display livestream` | the editor streamed over WebRTC |
-| `--display headless` | no window, nothing rendered |
-| `--build` | rebuild the image first; only needed after `docker/Dockerfile` changes, since the checkout is mounted into the container |
-| `-- ARGS` | arguments for `sim/main.py`, e.g. `-- --stage scenes/other.usda` |
+| `build` | build the image; Compose build options pass through, e.g. `build --pull --no-cache` |
+| `run` | run the sim, headless and with nothing rendered unless asked otherwise |
+| `run --gui` | the editor in a local X11 window |
+| `run --livestream` | the editor streamed over WebRTC; with `--gui`, the local window is streamed |
+| `run --build` | build the image first; only needed after `docker/Dockerfile` changes, since the checkout is mounted into the container. `run` never rebuilds on its own |
+| `run -- ARGS` | arguments for `sim/main.py`, e.g. `-- --stage scenes/other.usda` |
+| `shell` | a shell in the running sim container, or in a new container when the sim is not running; `shell -- COMMAND` runs a command instead |
+| `--env-file FILE` | instance settings instead of `.env` (see below) |
 
-The display picks the Kit experience: `headless` uses `config/kit/sim.headless.kit`
-and the other two use `config/kit/sim.gui.kit`. For `livestream` the entrypoint
-also starts the WebRTC extension, on the ports in `.env`. In every mode the stage starts playing as soon as it has loaded, in
-real time at 60 app updates per second, and runs until Ctrl+C, `docker stop`
-or, in the window, closing it. `run.sh` exits with the sim's status: 0 when it
-was stopped, 1 when the stage could not be opened or the run failed.
+`--gui` and `--livestream` reach `sim/main.py` as `SIM_GUI` and `SIM_LIVESTREAM`.
+A window or a livestream boots the editor experience, `config/kit/sim.gui.kit`;
+with neither, `config/kit/sim.headless.kit` runs without UI. The livestream is enabled at
+runtime on top of the editor, so it works with or without the local window. In
+every mode the stage starts playing as soon as it has loaded, in real time at 60
+app updates per second, and runs until Ctrl+C, `docker stop` or, in the window,
+closing it. `run` exits with the sim's status: 0 when it was stopped, 1 when the
+stage could not be opened or the run failed.
 
-For `window`, `run.sh` gives the container a copy of your X cookie that the
-container user can read, and deletes it on exit.
+The headless experience loads only the extensions `sim/main.py` and the demo
+stage's OmniGraph nodes need, not Isaac Sim's full base experience, so it boots
+in seconds. A stage with other nodes or sensors needs their extensions added to
+its `[dependencies]`; a missing one shows up as an unknown node type in the Kit
+log.
+
+The container is named `<COMPOSE_PROJECT_NAME>-sim` (`isaac-sim-sim` by default),
+so one sim runs per project; `run` refuses to start a second one. `sim.sh`
+removes the container when the run ends, and stops it first if Compose exited
+without stopping it. That works with the output piped too (`run | tee sim.log`).
+The container reports healthy once Isaac Sim has loaded.
+
+The image runs as `sim`, with your user and group ids (the build arguments
+`USER_ID` and `GROUP_ID`, which `sim.sh` sets), so files written to the checkout
+belong to you. Rebuild when another user runs it. For `--gui`, `sim.sh` gives the
+container a copy of your X cookie and deletes it on exit.
 
 The first run compiles the RTX shaders, which takes a few minutes; later runs
-reuse them from the `isaac-sim-kit-cache` volume.
+reuse them from the `isaac-sim-kit-cache-<uid>` volume. Kit logs are in the
+`isaac-sim-logs-<uid>` volume (`/isaac-sim/kit/logs` in the container).
 
-The same runs with plain Compose, with the display in `SIM_DISPLAY` (default
-`headless`). Started that way, `window` gets no X cookie: allow local X clients
-first (`xhost +local:`, and `xhost -local:` afterwards).
+Plain Compose works too. Build with your ids, and for a window add the X11
+access yourself (or allow local X clients with `xhost +local:`):
 
 ```bash
-docker compose run --rm sim
-SIM_DISPLAY=livestream docker compose run --rm sim
+HOST_UID=$(id -u) HOST_GID=$(id -g) docker compose build
+docker compose run --rm sim                          # headless
+docker compose run --rm -e SIM_LIVESTREAM=1 sim      # livestream
 ```
 
 ## ROS 2
@@ -93,14 +115,25 @@ Peers must use CycloneDDS (`RMW_IMPLEMENTATION=rmw_cyclonedds_cpp`) on the same
 
 ## Several instances on one host
 
-Give each instance its own `.env` (one checkout each, or `--env-file`) with a
-distinct `COMPOSE_PROJECT_NAME`, `ROS_DOMAIN_ID`, livestream ports and
-`VSCODE_PORT`. The shader and asset caches are shared volumes.
+Give each instance its own `.env` (one checkout each, or `docker/sim.sh
+--env-file FILE`) with a distinct `COMPOSE_PROJECT_NAME`, `ROS_DOMAIN_ID`,
+livestream ports and `VSCODE_PORT`. Instances of the same user share the shader
+and asset cache volumes.
 
 ## Without Docker
 
 With a local Isaac Sim 6.2 install:
 
 ```bash
-ACCEPT_EULA=Y ISAAC_SIM_DIR=~/isaacsim sim/run.sh --display window
+ACCEPT_EULA=Y ISAAC_SIM_DIR=~/isaacsim sim/run.sh --gui
 ```
+
+## Development
+
+```bash
+pre-commit install          # once; the hooks then run on every commit
+pre-commit run --all-files  # ruff, shellcheck, hadolint, yamllint, XML/TOML/kit checks,
+                            # docker compose config
+```
+
+CI runs the same hooks on every push to `main` and every pull request.
