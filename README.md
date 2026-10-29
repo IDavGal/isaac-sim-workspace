@@ -7,11 +7,13 @@ over WebRTC, or in a local window. ROS 2 Jazzy talks to the sim over CycloneDDS.
 ```
 sim/main.py                entrypoint: start SimulationApp, open the stage, play until stopped
 sim/run.sh                 runs sim/main.py with Isaac Sim's Python (the image entrypoint)
+sim/python.sh              runs any script with Isaac Sim's Python (used by sim/run.sh and pipeline/run.sh)
+pipeline/                  URDF to USD asset pipeline: import_asset.py, extract_overrides.py (docs/asset-pipeline.md)
 scenes/demo_arm.usda       demo stage: a fixed-base two-joint arm and its ROS 2 bridge graph
 config/kit/                Kit experiences: sim.headless.kit, sim.gui.kit (both load the ROS 2 bridge)
 config/dds/                CycloneDDS profiles (loopback, network)
 docker/Dockerfile          Isaac Sim 6.2 + this workspace
-setup.sh                 host shell setup for ROS 2 nodes that talk to the sim
+setup.sh                   host shell setup for ROS 2 nodes that talk to the sim
 docker/run.sh              runs the simulation: --display, --build, X11 access for the window
 docker-compose.yml         the sim service
 .env.example               per-instance settings: EULA, project name, ROS domain, DDS, ports

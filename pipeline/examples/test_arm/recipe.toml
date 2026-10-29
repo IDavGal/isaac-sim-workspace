@@ -1,0 +1,31 @@
+# Recipe for the synthetic test arm. Keys are joint and link names from the URDF.
+# Values are in USD units: degrees for revolute joints, metres for prismatic, kg for mass.
+
+[asset]
+urdf = "test_arm.urdf"
+physics = "physx"        # Physics variant the finished asset selects
+
+[import]                 # URDFImporterConfig fields
+fix_base = true
+merge_fixed_joints = false
+collision_type = "Convex Hull"
+link_density = 1000.0    # kg/m3 for links the URDF gives no <inertial>
+
+[joints."*"]             # every driven joint; named entries below win
+drive_type = "force"
+stiffness = 1000.0
+damping = 100.0
+max_force = 1000.0
+
+[joints.finger_left_joint]
+stiffness = 500.0
+damping = 50.0
+max_force = 40.0
+
+[joints.finger_right_joint]
+stiffness = 500.0
+damping = 50.0
+max_force = 40.0
+
+[links.shoulder]
+mass = 3.5
